@@ -24,6 +24,7 @@
       box-shadow: 0 0 15px rgba(63, 224, 240, 0.4);
       text-align: center;
       cursor: pointer;
+      min-width: 320px;
     }
     #prescript {
       font-size: 32px;
@@ -36,7 +37,7 @@
       margin-bottom: 15px;
       color: #88c0d0;
     }
-    #audio-notice {
+    #status-notice {
       font-size: 11px;
       color: #ff5555;
       margin-top: 15px;
@@ -46,30 +47,65 @@
 <body>
   <div class="box" id="terminal-box">
     <div class="sub-text">[ CITY WILL PRESCRIPT RECEIVER ]</div>
-    <div id="prescript">지령 대기 중</div>
-    <div id="audio-notice">▲ 화면을 클릭하여 효과음을 활성화하세요 ▲</div>
+    <div id="prescript">OFF</div>
+    <div id="status-notice">▲ 터미널을 클릭하여 시스템 오디오를 활성화하세요 ▲</div>
   </div>
 
-  <audio id="limbus-sound" src="alarm.mp3" preload="auto"></audio>
+  <!-- 오디오 파일 2개 연결 -->
+  <audio id="sound-beef" src="beef.mp3" preload="auto"></audio>
+  <audio id="sound-alarm" src="alarm.mp3" preload="auto"></audio>
 
   <script>
-    const audio = document.getElementById('limbus-sound');
+    const soundBeef = document.getElementById('sound-beef');
+    const soundAlarm = document.getElementById('sound-alarm');
     const prescriptEl = document.getElementById('prescript');
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%#$@&*!';
-    let scrambleInterval = null;
+    const statusNotice = document.getElementById('status-notice');
+    const terminalBox = document.getElementById('terminal-box');
 
+    let isAudioInitialized = false;
+    let currentStage = 0; // 0: 꺼짐/대기, 1: 지령도착(소리나는중), 2: 지령표시완료
+    let pendingText = "";
+    let beepInterval = null;
+    let scrambleInterval = null;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%#$@&*!';
+
+    // 브라우저 오디오 제한 해제
     function initAudio() {
-      audio.play().then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        document.getElementById('audio-notice').style.display = 'none';
+      if (isAudioInitialized) return;
+      soundBeef.play().then(() => {
+        soundBeef.pause();
+        soundBeef.currentTime = 0;
+        isAudioInitialized = true;
+        statusNotice.style.color = '#3fe0f0';
+        statusNotice.innerText = "[ 시스템 준비 완료 ]";
       }).catch(() => {});
     }
 
     window.addEventListener('click', initAudio, { once: true });
     window.addEventListener('touchstart', initAudio, { once: true });
 
-    // 림버스 특유의 글자 섞이며 고정되는 스크램블 연출 함수
+    // 0.5초 반복 알림음 제어
+    function startBeeping() {
+      stopBeeping();
+      soundBeef.currentTime = 0;
+      soundBeef.play().catch(() => {});
+      
+      beepInterval = setInterval(() => {
+        soundBeef.currentTime = 0;
+        soundBeef.play().catch(() => {});
+      }, 500); // 0.5초(500ms) 간격 반복
+    }
+
+    function stopBeeping() {
+      if (beepInterval) {
+        clearInterval(beepInterval);
+        beepInterval = null;
+      }
+      soundBeef.pause();
+      soundBeef.currentTime = 0;
+    }
+
+    // 텍스트 스크램블 해독 연출
     function startTextScramble(targetText) {
       if (scrambleInterval) clearInterval(scrambleInterval);
 
@@ -78,39 +114,60 @@
 
       scrambleInterval = setInterval(() => {
         let output = '';
-
         for (let i = 0; i < length; i++) {
           if (i < Math.floor(step)) {
-            // 이미 해독 완료된 글자 (목표 글자 고정)
             output += targetText[i];
           } else {
-            // 아직 해독 중인 글자 (랜덤 기호 섞임)
             output += chars[Math.floor(Math.random() * chars.length)];
           }
         }
 
         prescriptEl.innerText = output;
-        step += 0.35; // 타자속도 조절 (숫자가 작을수록천천히 해독)
+        step += 0.35;
 
         if (step >= length + 1) {
           prescriptEl.innerText = targetText;
           clearInterval(scrambleInterval);
         }
-      }, 40); // 40ms 간격으로 무작위 프레임 갱신
+      }, 40);
     }
 
+    // 단말기 상의 '물리 버튼' 클릭 이벤트를 박스 클릭으로 시뮬레이션
+    terminalBox.addEventListener('click', () => {
+      if (!isAudioInitialized) return;
+
+      if (currentStage === 1) {
+        // [1차 클릭] 삑삑 소리 멈춤 + alarm.mp3 + 스크램블 연출 시작
+        stopBeeping();
+        
+        soundAlarm.currentTime = 0;
+        soundAlarm.play().catch(() => {});
+
+        startTextScramble(pendingText);
+        statusNotice.innerText = "▲ 다시 클릭하면 단말기가 꺼집니다 ▲";
+        currentStage = 2;
+
+      } else if (currentStage === 2) {
+        // [2차 클릭] 단말기 화면 꺼짐
+        prescriptEl.innerText = "OFF";
+        statusNotice.innerText = "[ 지령 수신 대기 중 ]";
+        currentStage = 0;
+      }
+    });
+
+    // 서버에서 지령 수신 시
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
     ws.onmessage = (event) => {
-      const receivedText = event.data.trim();
+      pendingText = event.data.trim();
+      currentStage = 1;
       
-      // 1. MP3 사운드 재생
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-
-      // 2. 글자 섞이는 해독 연출 시작
-      startTextScramble(receivedText);
+      prescriptEl.innerText = "PRESCRIPT ARRIVED";
+      statusNotice.innerText = "▲ 단말기 버튼을 눌러 지령을 확인하세요 ▲";
+      
+      // 0.5초 간격 삑삑 소리 재생 시작
+      startBeeping();
     };
   </script>
 </body>
