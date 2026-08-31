@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Prescript Terminal</title>
+  <style>
+    body { background: #050505; color: #888; font-family: monospace; padding: 30px; }
+    .terminal-box { border: 2px solid #333; padding: 20px; width: 380px; min-height: 180px; }
+    .active { border-color: #ff3333; color: #ff3333; }
+    .title { font-weight: bold; font-size: 1.2em; }
+    .id-badge { background: #222; color: #d4af37; padding: 4px 8px; border: 1px solid #d4af37; font-size: 0.9em; margin-bottom: 15px; display: inline-block; }
+  </style>
+</head>
+<body>
+  <div class="id-badge" id="my-id-display">MY ID: INITIALIZING...</div>
+
+  <div class="terminal-box" id="box">
+    <div class="title" id="status">AWAITING PRESCRIPT...</div>
+    <hr style="border-color: #333;">
+    <div id="content"></div>
+  </div>
+
+  <script>
+    // URL에서 ?id=X 값 읽기
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawId = urlParams.get('id');
+    const myId = rawId ? String(rawId).trim() : '1';
+
+    // 화면 및 탭 제목 변경
+    document.title = `Terminal ID: ${myId}`;
+    document.getElementById('my-id-display').innerText = `CURRENT TERMINAL ID: [ ${myId} ]`;
+
+    console.log(`[INIT] Terminal ID ${myId} 접속 시도...`);
+
+    // SSE 서버 연결
+    const eventSource = new EventSource(`/api/terminal?id=${myId}`);
+
+    eventSource.onopen = () => {
+      console.log(`[CONNECTED] ID ${myId} 서버 연결 성공!`);
+    };
+
+    eventSource.onmessage = (e) => {
+      console.log("[RECIEVED]", e.data);
+      const data = JSON.parse(e.data);
+      
+      const box = document.getElementById('box');
+      const status = document.getElementById('status');
+      const content = document.getElementById('content');
+
+      box.classList.add('active');
+      status.innerText = `NEW PRESCRIPT [TARGET: ${data.target}]`;
+      content.innerText = data.command;
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("[ERROR] SSE 연결 에러 발생:", err);
+    };
+  </script>
+</body>
+</html>

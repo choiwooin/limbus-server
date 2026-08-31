@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Prescript Issuer</title>
+  <style>
+    body { background: #111; color: #d4af37; font-family: monospace; padding: 20px; }
+    input, button { background: #222; color: #fff; border: 1px solid #d4af37; padding: 8px; }
+    button { cursor: pointer; }
+    button:hover { background: #d4af37; color: #000; }
+  </style>
+</head>
+<body>
+  <h2>[ INDEX PRESCRIPT ISSUER ]</h2>
+  <div>
+    <label>TARGET ID: </label>
+    <input type="text" id="target" value="1">
+  </div><br>
+  <div>
+    <label>COMMAND: </label>
+    <input type="text" id="command" style="width: 300px;" value="지정 장소로 이동할 것.">
+  </div><br>
+  <button onclick="sendCommand()">EXECUTE PRESCRIPT</button>
+
+  <script>
+    async function sendCommand() {
+      const target = document.getElementById('target').value;
+      const command = document.getElementById('command').value;
+
+      await fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, command })
+      });
+    }
+  </script>
+</body>
+</html>
