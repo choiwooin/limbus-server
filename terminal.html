@@ -15,6 +15,7 @@
       justify-content: center;
       height: 100vh;
       margin: 0;
+      user-select: none;
     }
     .box {
       background: rgba(10, 30, 45, 0.85);
@@ -22,6 +23,7 @@
       padding: 25px 40px;
       box-shadow: 0 0 15px rgba(63, 224, 240, 0.4);
       text-align: center;
+      cursor: pointer;
     }
     #prescript {
       font-size: 32px;
@@ -33,45 +35,84 @@
       margin-bottom: 15px;
       color: #88c0d0;
     }
+    #audio-notice {
+      font-size: 11px;
+      color: #ff5555;
+      margin-top: 15px;
+    }
   </style>
 </head>
 <body>
-  <div class="box">
+  <div class="box" id="terminal-box">
     <div class="sub-text">[ CITY WILL PRESCRIPT RECEIVER ]</div>
     <div id="prescript">지령 대기 중</div>
+    <div id="audio-notice">▲ 화면을 클릭하여 타자 타격음을 활성화하세요 ▲</div>
   </div>
 
   <script>
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioCtx = null;
 
-    // 림버스 특유의 중저음 3연속 레트로 경고음 (삐- 삐- 삐-)
-    function playLimbusAlarm() {
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+      document.getElementById('audio-notice').style.display = 'none';
+    }
 
-      const freqs = [520, 520, 520]; // 묵직한 520Hz 중저음 톤
-      const times = [0, 0.15, 0.30];
+    window.addEventListener('click', initAudio);
+    window.addEventListener('touchstart', initAudio);
 
-      freqs.forEach((freq, idx) => {
-        setTimeout(() => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          
-          osc.type = 'sawtooth'; // 톱니바퀴형 파형 (둔탁하고 기계적인 음색)
-          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    // 보내주신 오디오 특유의 기계식 둔탁한 타격음 SFX
+    function playMechanicalTypewriterSound() {
+      if (!audioCtx) initAudio();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
 
-          // 묵직한 타격감 후 여운이 살짝 남는 볼륨 조절
-          gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+      const now = audioCtx.currentTime;
 
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
+      // 1. 묵직하게 쿵 찍히는 저음 타격 (Bass Impact)
+      const bassOsc = audioCtx.createOscillator();
+      const bassGain = audioCtx.createGain();
+      bassOsc.type = 'triangle';
+      bassOsc.frequency.setValueAtTime(150, now);
+      bassOsc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
 
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.12);
-        }, times[idx] * 1000);
-      });
+      bassGain.gain.setValueAtTime(0.8, now);
+      bassGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+      bassOsc.connect(bassGain);
+      bassGain.connect(audioCtx.destination);
+
+      bassOsc.start(now);
+      bassOsc.stop(now + 0.08);
+
+      // 2. 철컥거리며 마찰되는 금속/타자기 노이즈 (Metallic Click)
+      const bufferSize = audioCtx.sampleRate * 0.06;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.value = 2500; // 금속성 타격 주파수
+      noiseFilter.Q.value = 3;
+
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.6, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+
+      noise.start(now);
     }
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -79,12 +120,8 @@
 
     ws.onmessage = (event) => {
       document.getElementById('prescript').innerText = event.data.trim();
-      playLimbusAlarm();
+      playMechanicalTypewriterSound();
     };
-
-    window.addEventListener('click', () => {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    });
   </script>
 </body>
 </html>
