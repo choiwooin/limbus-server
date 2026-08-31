@@ -1,77 +1,42 @@
 const express = require('express');
 const http = require('http');
+const WebSocket = require('ws');
 const path = require('path');
-const app = express();
 
-app.use(express.json());
-// 현재 폴더의 모든 HTML/JS 파일 정적 접근 허용
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
 app.use(express.static(__dirname));
 
-// 연결된 웹소켓/SSE 클라이언트 맵 (ID -> res)
-const clients = new Map();
-
-// 1. 기본 주소( / )로 들어오면 자동으로 sender.html을 보여줌
+// 기본 라우팅 설정
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'sender.html'));
 });
 
-// 2. /sender.html 주소 직접 접근 허용
-app.get('/sender.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'sender.html'));
-});
-
-// 3. /terminal.html 주소 직접 접근 허용
 app.get('/terminal.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'terminal.html'));
 });
 
-// 단말기 SSE 접속 엔드포인트
-app.get('/api/terminal', (req, res) => {
-  const terminalId = req.query.id ? String(req.query.id).trim() : '1';
+// 웹소켓 실시간 연결 처리
+wss.on('connection', (ws) => {
+  console.log('[ONLINE] 새로운 단말기/발신기 연결됨');
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  ws.on('message', (message) => {
+    const commandText = message.toString();
+    console.log(`[PRESCRIPT RECEIVE]: ${commandText}`);
 
-  if (clients.has(terminalId)) {
-    try { clients.get(terminalId).end(); } catch (e) {}
-  }
-
-  clients.set(terminalId, res);
-  console.log(`[ONLINE] 단말기 ${terminalId}번 접속완료`);
-
-  req.on('close', () => {
-    if (clients.get(terminalId) === res) {
-      clients.delete(terminalId);
-      console.log(`[OFFLINE] 단말기 ${terminalId}번 접속해제`);
-    }
+    // 접속된 모든 터미널로 실시간 메시지 전파
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(commandText);
+      }
+    });
   });
 });
 
-// 발신기 지령 전송 API
-app.post('/api/command', (req, res) => {
-  const target = String(req.body.target || '').trim();
-  const command = req.body.command || '';
-
-  if (target === "ALL") {
-    clients.forEach((clientRes) => {
-      clientRes.write(`data: ${JSON.stringify({ target, command })}\n\n`);
-    });
-    return res.json({ success: true });
-  }
-
-  const targetClient = clients.get(target);
-  if (targetClient) {
-    targetClient.write(`data: ${JSON.stringify({ target, command })}\n\n`);
-    return res.json({ success: true, delivered: true });
-  } else {
-    return res.json({ success: true, delivered: false, message: "Terminal Offline" });
-  }
-});
-
-// Render 등 클라우드 환경용 PORT 자동 인식 설정
+// Render 포트 수신
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`CITY WILL SERVER ONLINE (PORT ${PORT})`);
 });
