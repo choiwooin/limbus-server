@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>CITY WILL TERMINAL</title>
-  <!-- 림버스 스타일 도트 폰트(Press Start 2P) 로드 -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     body {
       background-color: #050b14;
-      color: #3fe0f0; /* 민트/하늘색 픽셀 빛 */
+      color: #3fe0f0;
       font-family: 'Press Start 2P', monospace;
       display: flex;
       flex-direction: column;
@@ -20,7 +19,7 @@
     .box {
       background: rgba(10, 30, 45, 0.85);
       border: 2px solid #3fe0f0;
-      padding: 20px 30px;
+      padding: 25px 40px;
       box-shadow: 0 0 15px rgba(63, 224, 240, 0.4);
     }
     #prescript {
@@ -40,7 +39,7 @@
     const ws = new WebSocket(protocol + '//' + location.host);
 
     ws.onmessage = (event) => {
-      // 기호 없이 입력된 글자 그대로 대문자로 픽셀 폰트 출력
+      // 입력받은 지령 텍스트를 기호 없이 대문자 도트 폰트로 즉시 변경
       document.getElementById('prescript').innerText = event.data.trim().toUpperCase();
     };
   </script>
