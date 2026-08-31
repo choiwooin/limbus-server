@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>CITY WILL TERMINAL</title>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css">
   <style>
     body {
       background-color: #050b14;
       color: #3fe0f0;
-      font-family: 'Press Start 2P', monospace;
+      font-family: 'Galmuri9', monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -21,27 +21,74 @@
       border: 2px solid #3fe0f0;
       padding: 25px 40px;
       box-shadow: 0 0 15px rgba(63, 224, 240, 0.4);
+      text-align: center;
     }
     #prescript {
-      font-size: 28px;
+      font-size: 32px;
       letter-spacing: 2px;
-      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .sub-text {
+      font-size: 14px;
+      margin-bottom: 15px;
+      color: #88c0d0;
     }
   </style>
 </head>
 <body>
   <div class="box">
-    <div id="prescript">WAITING</div>
+    <div class="sub-text">[ CITY WILL PRESCRIPT RECEIVER ]</div>
+    <div id="prescript">지령 대기 중</div>
   </div>
 
   <script>
+    // 브라우저 오디오 객체 생성
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 레트로 삐삑! 소리 발생 함수
+    function playBeepSound() {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      // 첫 번째 고음 삐 (987Hz - B5)
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.type = 'square'; // 8비트 레트로 음색
+      osc1.frequency.setValueAtTime(987, audioCtx.currentTime);
+      gain1.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start();
+      osc1.stop(audioCtx.currentTime + 0.08);
+
+      // 두 번째 더 높은 삑 (1318Hz - E6)
+      setTimeout(() => {
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(1318, audioCtx.currentTime);
+        gain2.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start();
+        osc2.stop(audioCtx.currentTime + 0.12);
+      }, 90);
+    }
+
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
     ws.onmessage = (event) => {
-      // 입력받은 지령 텍스트를 기호 없이 대문자 도트 폰트로 즉시 변경
-      document.getElementById('prescript').innerText = event.data.trim().toUpperCase();
+      // 메시지 수신 시 화면 업데이트 + 삐삑 소리 재생
+      document.getElementById('prescript').innerText = event.data.trim();
+      playBeepSound();
     };
+
+    // 브라우저 보안 정책상 화면 한번 클릭해야 소리 재생 권한 활성화됨
+    window.addEventListener('click', () => {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    });
   </script>
 </body>
 </html>
