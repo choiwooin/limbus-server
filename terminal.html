@@ -46,81 +46,36 @@
   <div class="box" id="terminal-box">
     <div class="sub-text">[ CITY WILL PRESCRIPT RECEIVER ]</div>
     <div id="prescript">지령 대기 중</div>
-    <div id="audio-notice">▲ 화면을 클릭하여 타자 타격음을 활성화하세요 ▲</div>
+    <div id="audio-notice">▲ 화면을 클릭하여 효과음을 활성화하세요 ▲</div>
   </div>
 
+  <!-- 올리신 MP3 파일 연결 -->
+  <audio id="limbus-sound" src="index_message (1).mp3" preload="auto"></audio>
+
   <script>
-    let audioCtx = null;
+    const audio = document.getElementById('limbus-sound');
 
+    // 화면 클릭 시 브라우저 오디오 차단 해제
     function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      document.getElementById('audio-notice').style.display = 'none';
+      audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        document.getElementById('audio-notice').style.display = 'none';
+      }).catch(() => {});
     }
 
-    window.addEventListener('click', initAudio);
-    window.addEventListener('touchstart', initAudio);
-
-    // 보내주신 오디오 특유의 기계식 둔탁한 타격음 SFX
-    function playMechanicalTypewriterSound() {
-      if (!audioCtx) initAudio();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-
-      const now = audioCtx.currentTime;
-
-      // 1. 묵직하게 쿵 찍히는 저음 타격 (Bass Impact)
-      const bassOsc = audioCtx.createOscillator();
-      const bassGain = audioCtx.createGain();
-      bassOsc.type = 'triangle';
-      bassOsc.frequency.setValueAtTime(150, now);
-      bassOsc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
-
-      bassGain.gain.setValueAtTime(0.8, now);
-      bassGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-
-      bassOsc.connect(bassGain);
-      bassGain.connect(audioCtx.destination);
-
-      bassOsc.start(now);
-      bassOsc.stop(now + 0.08);
-
-      // 2. 철컥거리며 마찰되는 금속/타자기 노이즈 (Metallic Click)
-      const bufferSize = audioCtx.sampleRate * 0.06;
-      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-
-      const noise = audioCtx.createBufferSource();
-      noise.buffer = buffer;
-
-      const noiseFilter = audioCtx.createBiquadFilter();
-      noiseFilter.type = 'bandpass';
-      noiseFilter.frequency.value = 2500; // 금속성 타격 주파수
-      noiseFilter.Q.value = 3;
-
-      const noiseGain = audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.6, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
-
-      noise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(audioCtx.destination);
-
-      noise.start(now);
-    }
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
     ws.onmessage = (event) => {
       document.getElementById('prescript').innerText = event.data.trim();
-      playMechanicalTypewriterSound();
+      
+      // 원작 MP3 소리 재생
+      audio.currentTime = 0;
+      audio.play();
     };
   </script>
 </body>
