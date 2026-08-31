@@ -29,6 +29,7 @@
       font-size: 32px;
       letter-spacing: 2px;
       font-weight: bold;
+      min-height: 40px;
     }
     .sub-text {
       font-size: 14px;
@@ -49,35 +50,67 @@
     <div id="audio-notice">▲ 화면을 클릭하여 효과음을 활성화하세요 ▲</div>
   </div>
 
-  <!-- 변경된 파일명 적용 -->
   <audio id="limbus-sound" src="alarm.mp3" preload="auto"></audio>
 
   <script>
     const audio = document.getElementById('limbus-sound');
+    const prescriptEl = document.getElementById('prescript');
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%#$@&*!';
+    let scrambleInterval = null;
 
     function initAudio() {
       audio.play().then(() => {
         audio.pause();
         audio.currentTime = 0;
         document.getElementById('audio-notice').style.display = 'none';
-      }).catch((e) => {
-        console.log("Audio play blocked:", e);
-      });
+      }).catch(() => {});
     }
 
     window.addEventListener('click', initAudio, { once: true });
     window.addEventListener('touchstart', initAudio, { once: true });
 
+    // 림버스 특유의 글자 섞이며 고정되는 스크램블 연출 함수
+    function startTextScramble(targetText) {
+      if (scrambleInterval) clearInterval(scrambleInterval);
+
+      let step = 0;
+      const length = targetText.length;
+
+      scrambleInterval = setInterval(() => {
+        let output = '';
+
+        for (let i = 0; i < length; i++) {
+          if (i < Math.floor(step)) {
+            // 이미 해독 완료된 글자 (목표 글자 고정)
+            output += targetText[i];
+          } else {
+            // 아직 해독 중인 글자 (랜덤 기호 섞임)
+            output += chars[Math.floor(Math.random() * chars.length)];
+          }
+        }
+
+        prescriptEl.innerText = output;
+        step += 0.35; // 타자속도 조절 (숫자가 작을수록천천히 해독)
+
+        if (step >= length + 1) {
+          prescriptEl.innerText = targetText;
+          clearInterval(scrambleInterval);
+        }
+      }, 40); // 40ms 간격으로 무작위 프레임 갱신
+    }
+
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
     ws.onmessage = (event) => {
-      document.getElementById('prescript').innerText = event.data.trim();
+      const receivedText = event.data.trim();
       
+      // 1. MP3 사운드 재생
       audio.currentTime = 0;
-      audio.play().catch((e) => {
-        console.log("Play failed:", e);
-      });
+      audio.play().catch(() => {});
+
+      // 2. 글자 섞이는 해독 연출 시작
+      startTextScramble(receivedText);
     };
   </script>
 </body>
