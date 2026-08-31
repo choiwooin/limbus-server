@@ -1,59 +1,47 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Prescript Terminal</title>
+  <title>CITY WILL TERMINAL</title>
+  <!-- 림버스 스타일 도트 폰트(Press Start 2P) 로드 -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    body { background: #050505; color: #888; font-family: monospace; padding: 30px; }
-    .terminal-box { border: 2px solid #333; padding: 20px; width: 380px; min-height: 180px; }
-    .active { border-color: #ff3333; color: #ff3333; }
-    .title { font-weight: bold; font-size: 1.2em; }
-    .id-badge { background: #222; color: #d4af37; padding: 4px 8px; border: 1px solid #d4af37; font-size: 0.9em; margin-bottom: 15px; display: inline-block; }
+    body {
+      background-color: #050b14;
+      color: #3fe0f0; /* 민트/하늘색 픽셀 빛 */
+      font-family: 'Press Start 2P', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .box {
+      background: rgba(10, 30, 45, 0.85);
+      border: 2px solid #3fe0f0;
+      padding: 20px 30px;
+      box-shadow: 0 0 15px rgba(63, 224, 240, 0.4);
+    }
+    #prescript {
+      font-size: 28px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
-  <div class="id-badge" id="my-id-display">MY ID: INITIALIZING...</div>
-
-  <div class="terminal-box" id="box">
-    <div class="title" id="status">AWAITING PRESCRIPT...</div>
-    <hr style="border-color: #333;">
-    <div id="content"></div>
+  <div class="box">
+    <div id="prescript">WAITING</div>
   </div>
 
   <script>
-    // URL에서 ?id=X 값 읽기
-    const urlParams = new URLSearchParams(window.location.search);
-    const rawId = urlParams.get('id');
-    const myId = rawId ? String(rawId).trim() : '1';
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(protocol + '//' + location.host);
 
-    // 화면 및 탭 제목 변경
-    document.title = `Terminal ID: ${myId}`;
-    document.getElementById('my-id-display').innerText = `CURRENT TERMINAL ID: [ ${myId} ]`;
-
-    console.log(`[INIT] Terminal ID ${myId} 접속 시도...`);
-
-    // SSE 서버 연결
-    const eventSource = new EventSource(`/api/terminal?id=${myId}`);
-
-    eventSource.onopen = () => {
-      console.log(`[CONNECTED] ID ${myId} 서버 연결 성공!`);
-    };
-
-    eventSource.onmessage = (e) => {
-      console.log("[RECIEVED]", e.data);
-      const data = JSON.parse(e.data);
-      
-      const box = document.getElementById('box');
-      const status = document.getElementById('status');
-      const content = document.getElementById('content');
-
-      box.classList.add('active');
-      status.innerText = `NEW PRESCRIPT [TARGET: ${data.target}]`;
-      content.innerText = data.command;
-    };
-
-    eventSource.onerror = (err) => {
-      console.error("[ERROR] SSE 연결 에러 발생:", err);
+    ws.onmessage = (event) => {
+      // 기호 없이 입력된 글자 그대로 대문자로 픽셀 폰트 출력
+      document.getElementById('prescript').innerText = event.data.trim().toUpperCase();
     };
   </script>
 </body>
