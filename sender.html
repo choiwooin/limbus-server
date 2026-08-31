@@ -1,37 +1,33 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Prescript Issuer</title>
+  <title>CITY WILL - SENDER</title>
   <style>
-    body { background: #111; color: #d4af37; font-family: monospace; padding: 20px; }
-    input, button { background: #222; color: #fff; border: 1px solid #d4af37; padding: 8px; }
-    button { cursor: pointer; }
-    button:hover { background: #d4af37; color: #000; }
+    body { background: #050b14; color: #3fe0f0; font-family: monospace; text-align: center; padding-top: 50px; }
+    input { padding: 10px; width: 250px; background: #112233; color: #fff; border: 1px solid #3fe0f0; }
+    button { padding: 10px 20px; background: #3fe0f0; color: #000; font-weight: bold; border: none; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h2>[ INDEX PRESCRIPT ISSUER ]</h2>
-  <div>
-    <label>TARGET ID: </label>
-    <input type="text" id="target" value="1">
-  </div><br>
-  <div>
-    <label>COMMAND: </label>
-    <input type="text" id="command" style="width: 300px;" value="지정 장소로 이동할 것.">
-  </div><br>
-  <button onclick="sendCommand()">EXECUTE PRESCRIPT</button>
+  <h2>[ CITY WILL PRESCRIPT SENDER ]</h2>
+  <br>
+  <input type="text" id="msg" placeholder="지령 입력 (예: CLEAR)">
+  <button onclick="send()">전송</button>
 
   <script>
-    async function sendCommand() {
-      const target = document.getElementById('target').value;
-      const command = document.getElementById('command').value;
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(protocol + '//' + location.host);
 
-      await fetch('/api/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, command })
-      });
+    function send() {
+      const input = document.getElementById('msg');
+      if (input.value && ws.readyState === WebSocket.OPEN) {
+        ws.send(input.value);
+        alert('지령 하달: ' + input.value);
+        input.value = '';
+      } else {
+        alert('서버와 연결 중입니다. 잠시 후 다시 시도하세요.');
+      }
     }
   </script>
 </body>
