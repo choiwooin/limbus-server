@@ -37,7 +37,6 @@
       margin-bottom: 15px;
       color: #88c0d0;
     }
-    /* 아두이노 연결 버튼 스타일 */
     .serial-btn {
       margin-top: 20px;
       padding: 10px 20px;
@@ -60,10 +59,8 @@
     <div id="prescript">OFF</div>
   </div>
 
-  <!-- 아두이노 USB 연결 버튼 -->
   <button id="connect-btn" class="serial-btn" onclick="connectArduino()">[ Connect Hardware Terminal ]</button>
 
-  <!-- 오디오 파일 2개 연결 -->
   <audio id="sound-beef" src="beef.mp3" preload="auto"></audio>
   <audio id="sound-alarm" src="alarm.mp3" preload="auto"></audio>
 
@@ -81,10 +78,8 @@
     let scrambleInterval = null;
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%#$@&*!';
 
-    // Web Serial 변수
     let port, writer, reader;
 
-    // 브라우저 오디오 제한 해제
     function initAudio() {
       if (isAudioInitialized) return;
       soundBeef.play().then(() => {
@@ -97,7 +92,6 @@
     window.addEventListener('click', initAudio, { once: true });
     window.addEventListener('touchstart', initAudio, { once: true });
 
-    // 0.5초 반복 알림음 제어
     function startBeeping() {
       stopBeeping();
       soundBeef.currentTime = 0;
@@ -118,7 +112,6 @@
       soundBeef.currentTime = 0;
     }
 
-    // 텍스트 스크램블 해독 연출
     function startTextScramble(targetText) {
       if (scrambleInterval) clearInterval(scrambleInterval);
 
@@ -145,38 +138,33 @@
       }, 40);
     }
 
-    // [공통 핵심 로직] 단말기 버튼 클릭 또는 웹 박스 클릭 시 실행되는 동작
+    // [핵심] 클릭 시 웹 화면과 아두이노 OLED 화면을 모두 제어
     function handleTerminalClick() {
       initAudio();
 
       if (currentStage === 1) {
-        // [1차 클릭] 삑삑 소리 멈춤 + alarm.mp3 + 스크램블 연출 시작
+        // 1차 클릭: 소리 멈춤 + 웹/OLED 동시 스크램블 시작
         stopBeeping();
         
         soundAlarm.currentTime = 0;
         soundAlarm.play().catch(() => {});
 
         startTextScramble(pendingText);
-        
-        // 아두이노 실물 단말기로 수신된 지령 전달
-        sendToArduino(pendingText);
+        sendToArduino(pendingText); // 아두이노 OLED에 지령 텍스트 전송
         
         currentStage = 2;
 
       } else if (currentStage === 2) {
-        // [2차 클릭] 단말기 화면 꺼짐
+        // 2차 클릭: 웹 화면 & OLED 화면 OFF 전환
         prescriptEl.innerText = "OFF";
-        sendToArduino("OFF");
+        sendToArduino("OFF"); // 아두이노 OLED OFF
         currentStage = 0;
       }
     }
 
-    // 화면 클릭 이벤트 등록
     terminalBox.addEventListener('click', handleTerminalClick);
 
-    // ==========================================
-    // Web Serial (아두이노 연동) 로직
-    // ==========================================
+    // Web Serial 연결
     async function connectArduino() {
       try {
         port = await navigator.serial.requestPort();
@@ -196,12 +184,11 @@
 
         readFromArduino();
       } catch (error) {
-        console.error("아두이노 연결 실패:", error);
-        alert("아두이노 연결에 실패했거나 취소되었습니다.");
+        console.error("연결 실패:", error);
       }
     }
 
-    // 아두이노 버튼 입력 신호 감지 ("BUTTON_CLICK")
+    // 아두이노 버튼 입력 신호 감지
     async function readFromArduino() {
       while (true) {
         const { value, done } = await reader.read();
@@ -211,9 +198,6 @@
         }
         if (value) {
           const message = value.trim();
-          console.log("아두이노 데이터 수신:", message);
-
-          // 아두이노의 실물 KY-004 버튼이 눌리면 웹 화면 박스를 클릭한 것과 동일하게 작동
           if (message === "BUTTON_CLICK") {
             handleTerminalClick();
           }
@@ -221,20 +205,18 @@
       }
     }
 
-    // 아두이노로 데이터 전송
+    // 아두이노 OLED 화면으로 명령어 전송
     async function sendToArduino(text) {
       if (writer) {
         try {
           await writer.write(text + "\n");
         } catch (err) {
-          console.error("아두이노 전송 실패:", err);
+          console.error("전송 에러:", err);
         }
       }
     }
 
-    // ==========================================
-    // WebSocket (Render 서버 연동) 로직
-    // ==========================================
+    // WebSocket (Render 서버 연결)
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
@@ -243,8 +225,8 @@
       currentStage = 1;
       
       prescriptEl.innerText = "PRESCRIPT ARRIVED";
+      sendToArduino("ARRIVED"); // 아두이노 OLED에 지령 도착 알림 표시
       
-      // 0.5초 간격 삑삑 소리 재생 시작
       startBeeping();
     };
   </script>
