@@ -37,6 +37,21 @@
       margin-bottom: 15px;
       color: #88c0d0;
     }
+    /* 아두이노 연결 버튼 스타일 */
+    .serial-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: transparent;
+      border: 1px solid #3fe0f0;
+      color: #3fe0f0;
+      font-family: 'Galmuri9', monospace;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(63, 224, 240, 0.3);
+      transition: all 0.2s;
+    }
+    .serial-btn:hover {
+      background-color: rgba(63, 224, 240, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -44,6 +59,9 @@
     <div class="sub-text">[ CITY WILL PRESCRIPT RECEIVER ]</div>
     <div id="prescript">OFF</div>
   </div>
+
+  <!-- 아두이노 USB 연결 버튼 -->
+  <button id="connect-btn" class="serial-btn" onclick="connectArduino()">[ Connect Hardware Terminal ]</button>
 
   <!-- 오디오 파일 2개 연결 -->
   <audio id="sound-beef" src="beef.mp3" preload="auto"></audio>
@@ -54,6 +72,7 @@
     const soundAlarm = document.getElementById('sound-alarm');
     const prescriptEl = document.getElementById('prescript');
     const terminalBox = document.getElementById('terminal-box');
+    const connectBtn = document.getElementById('connect-btn');
 
     let isAudioInitialized = false;
     let currentStage = 0; // 0: 꺼짐/대기, 1: 지령도착(소리나는중), 2: 지령표시완료
@@ -61,6 +80,9 @@
     let beepInterval = null;
     let scrambleInterval = null;
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%#$@&*!';
+
+    // Web Serial 변수
+    let port, writer, reader;
 
     // 브라우저 오디오 제한 해제
     function initAudio() {
@@ -84,7 +106,7 @@
       beepInterval = setInterval(() => {
         soundBeef.currentTime = 0;
         soundBeef.play().catch(() => {});
-      }, 500); // 0.5초(500ms) 간격 반복
+      }, 500);
     }
 
     function stopBeeping() {
@@ -123,9 +145,9 @@
       }, 40);
     }
 
-    // 단말기 상의 '물리 버튼' 클릭 이벤트를 박스 클릭으로 시뮬레이션
-    terminalBox.addEventListener('click', () => {
-      if (!isAudioInitialized) return;
+    // [공통 핵심 로직] 단말기 버튼 클릭 또는 웹 박스 클릭 시 실행되는 동작
+    function handleTerminalClick() {
+      initAudio();
 
       if (currentStage === 1) {
         // [1차 클릭] 삑삑 소리 멈춤 + alarm.mp3 + 스크램블 연출 시작
@@ -135,16 +157,84 @@
         soundAlarm.play().catch(() => {});
 
         startTextScramble(pendingText);
+        
+        // 아두이노 실물 단말기로 수신된 지령 전달
+        sendToArduino(pendingText);
+        
         currentStage = 2;
 
       } else if (currentStage === 2) {
         // [2차 클릭] 단말기 화면 꺼짐
         prescriptEl.innerText = "OFF";
+        sendToArduino("OFF");
         currentStage = 0;
       }
-    });
+    }
 
-    // 서버에서 지령 수신 시
+    // 화면 클릭 이벤트 등록
+    terminalBox.addEventListener('click', handleTerminalClick);
+
+    // ==========================================
+    // Web Serial (아두이노 연동) 로직
+    // ==========================================
+    async function connectArduino() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        
+        connectBtn.innerText = "[ Hardware Connected ]";
+        connectBtn.style.color = "#00ffcc";
+        connectBtn.style.borderColor = "#00ffcc";
+
+        const textDecoder = new TextDecoderStream();
+        port.readable.pipeTo(textDecoder.writable);
+        reader = textDecoder.readable.getReader();
+
+        const textEncoder = new TextEncoderStream();
+        textEncoder.readable.pipeTo(port.writable);
+        writer = textEncoder.writable.getWriter();
+
+        readFromArduino();
+      } catch (error) {
+        console.error("아두이노 연결 실패:", error);
+        alert("아두이노 연결에 실패했거나 취소되었습니다.");
+      }
+    }
+
+    // 아두이노 버튼 입력 신호 감지 ("BUTTON_CLICK")
+    async function readFromArduino() {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          reader.releaseLock();
+          break;
+        }
+        if (value) {
+          const message = value.trim();
+          console.log("아두이노 데이터 수신:", message);
+
+          // 아두이노의 실물 KY-004 버튼이 눌리면 웹 화면 박스를 클릭한 것과 동일하게 작동
+          if (message === "BUTTON_CLICK") {
+            handleTerminalClick();
+          }
+        }
+      }
+    }
+
+    // 아두이노로 데이터 전송
+    async function sendToArduino(text) {
+      if (writer) {
+        try {
+          await writer.write(text + "\n");
+        } catch (err) {
+          console.error("아두이노 전송 실패:", err);
+        }
+      }
+    }
+
+    // ==========================================
+    // WebSocket (Render 서버 연동) 로직
+    // ==========================================
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + location.host);
 
